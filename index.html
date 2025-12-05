@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Santa's Circuit Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Modern Slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #2563eb;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            border: 2px solid white;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #e2e8f0;
+            border-radius: 3px;
+        }
+
+        /* Animations */
+        .glow-on {
+            filter: drop-shadow(0 0 15px rgba(250, 204, 21, 0.8));
+            transform: scale(1.05);
+        }
+        .wire-active {
+            stroke-dasharray: 10;
+            animation: dash 1s linear infinite;
+        }
+        @keyframes dash {
+            to { stroke-dashoffset: -20; }
+        }
+        
+        /* Utility */
+        .no-select { user-select: none; }
+        .popover {
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            transform-origin: top left;
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(0.95);
+        }
+        .popover.active {
+            opacity: 1;
+            pointer-events: auto;
+            transform: scale(1);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 font-sans min-h-screen p-6 text-slate-800">
+
+    <!-- Language Switcher -->
+    <div class="absolute top-4 right-4 z-50">
+        <select id="lang-select" onchange="changeLanguage(this.value)" class="bg-white border border-slate-300 text-slate-700 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 shadow-sm">
+            <option value="en">🇺🇸 English</option>
+            <option value="de">🇩🇪 Deutsch</option>
+            <option value="es">🇪🇸 Español</option>
+            <option value="pt">🇧🇷 Português</option>
+        </select>
+    </div>
+
+    <!-- Header -->
+    <div class="max-w-5xl mx-auto mb-8 text-center pt-8 lg:pt-0">
+        <h1 class="text-4xl font-extrabold text-slate-900 mb-2 flex items-center justify-center gap-3">
+            <span class="text-4xl">🎄</span> <span data-i18n="title">Santa's Logic Circuit</span>
+        </h1>
+        <p class="text-lg text-slate-600 max-w-2xl mx-auto" data-i18n="subtitle">
+            Build a brain that fires <strong>ONLY</strong> when a child does <strong>Exactly One</strong> chore.
+        </p>
+    </div>
+
+    <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- LEFT PANEL: Controls & Truth Table -->
+        <div class="lg:col-span-4 space-y-6">
+            
+            <!-- 1. The Inputs -->
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500 mb-4" data-i18n="step1">Step 1: Test Scenarios</h2>
+                <div class="grid grid-cols-2 gap-3">
+                    <button id="btn-x1" onclick="toggleInput('x1')" class="py-4 rounded-xl border-2 font-bold text-lg transition-all flex flex-col items-center gap-1 group relative overflow-hidden">
+                        <span class="text-sm font-normal text-slate-500" data-i18n="input1">Input 1</span>
+                        <span data-i18n="trash">Trash</span>
+                        <div id="status-x1" class="absolute inset-x-0 bottom-0 h-1.5 bg-gray-200 transition-colors"></div>
+                    </button>
+                    <button id="btn-x2" onclick="toggleInput('x2')" class="py-4 rounded-xl border-2 font-bold text-lg transition-all flex flex-col items-center gap-1 group relative overflow-hidden">
+                        <span class="text-sm font-normal text-slate-500" data-i18n="input2">Input 2</span>
+                        <span data-i18n="dishes">Dishes</span>
+                        <div id="status-x2" class="absolute inset-x-0 bottom-0 h-1.5 bg-gray-200 transition-colors"></div>
+                    </button>
+                </div>
+                <p class="text-center text-sm text-slate-400 mt-3" data-i18n="clickHint">Click buttons to change what the child did.</p>
+            </div>
+
+            <!-- 2. The Logic Table -->
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500" data-i18n="step2">Step 2: Logic Check</h2>
+                    <span id="score-badge" class="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold">0/4</span>
+                </div>
+                
+                <div class="space-y-2" id="truth-table">
+                    <!-- Rows generated by JS -->
+                </div>
+            </div>
+
+            <!-- 3. Success Banner -->
+            <div id="success-banner" class="hidden bg-green-500 text-white p-6 rounded-2xl shadow-lg text-center transform transition-all hover:scale-105 cursor-pointer">
+                <h3 class="text-2xl font-bold mb-1" data-i18n="successTitle">🎉 Challenge Complete!</h3>
+                <p class="opacity-90" data-i18n="successMsg">The network is now a perfect XOR Gate.</p>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL: The Visual Network -->
+        <div class="lg:col-span-8 bg-slate-900 rounded-3xl p-8 relative min-h-[600px] flex items-center justify-center overflow-visible shadow-2xl no-select">
+            
+            <!-- Instructions Overlay (Initially Visible) -->
+            <div id="hint-overlay" class="absolute top-4 left-4 bg-white/10 backdrop-blur-md text-white p-4 rounded-xl border border-white/20 max-w-xs z-0 pointer-events-none">
+                <p class="font-bold text-yellow-400 mb-1" data-i18n="hintTitle">💡 How to play:</p>
+                <p class="text-sm opacity-90" data-i18n="hintText">Click on the <strong>Lightbulbs</strong> (Neurons) to change their wiring. Make the final bulb light up ONLY for "One Chore".</p>
+            </div>
+
+            <!-- SVG Wires Layer -->
+            <svg class="absolute inset-0 w-full h-full pointer-events-none z-0">
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="28" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#64748b" />
+                    </marker>
+                </defs>
+                <!-- Lines will be drawn here by JS -->
+            </svg>
+
+            <!-- Network Grid -->
+            <div class="relative z-10 w-full max-w-2xl grid grid-cols-3 gap-8">
+                
+                <!-- COLUMN 1: INPUTS -->
+                <div class="flex flex-col justify-center gap-32">
+                    <div id="node-x1" class="w-20 h-20 bg-slate-800 border-4 border-slate-600 rounded-full flex flex-col items-center justify-center text-white shadow-xl">
+                        <span class="text-xs text-slate-400" data-i18n="nodeInput">INPUT</span>
+                        <span class="font-bold text-xl">1</span>
+                    </div>
+                    <div id="node-x2" class="w-20 h-20 bg-slate-800 border-4 border-slate-600 rounded-full flex flex-col items-center justify-center text-white shadow-xl">
+                        <span class="text-xs text-slate-400" data-i18n="nodeInput">INPUT</span>
+                        <span class="font-bold text-xl">2</span>
+                    </div>
+                </div>
+
+                <!-- COLUMN 2: HIDDEN LAYER -->
+                <div class="flex flex-col justify-between py-12">
+                    <!-- Neuron A -->
+                    <div class="relative group">
+                        <button onclick="openConfig('A')" id="node-a" class="w-24 h-24 bg-white border-4 border-slate-300 rounded-full flex flex-col items-center justify-center shadow-lg transition-all hover:scale-105 active:scale-95 z-20 relative">
+                            <!-- Bulb Icon -->
+                            <svg class="w-10 h-10 text-slate-300 transition-colors duration-300" id="icon-a" fill="currentColor" viewBox="0 0 20 20"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"/></svg>
+                            <div class="absolute -bottom-8 bg-slate-800 text-white text-xs px-2 py-1 rounded w-max" data-i18n="neuronA">Neuron A</div>
+                        </button>
+                        
+                        <!-- Status Badge -->
+                        <div id="badge-a" class="absolute -top-3 -right-3 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full border-2 border-slate-900 z-30">OFF</div>
+
+                        <!-- POPOVER A -->
+                        <div id="popover-A" class="popover absolute top-0 left-[110%] w-72 bg-white rounded-xl shadow-2xl p-5 z-50">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 class="font-bold text-lg text-slate-800" data-i18n="neuronA">Neuron A</h3>
+                                    <p class="text-xs text-slate-500"><span data-i18n="actingAs">Currently acting as:</span> <span id="gate-a" class="font-mono bg-yellow-100 text-yellow-800 px-1 rounded">UNKNOWN</span></p>
+                                </div>
+                                <button onclick="openConfig(null)" class="text-slate-400 hover:text-slate-600">✕</button>
+                            </div>
+                            
+                            <!-- Math Vis -->
+                            <div class="bg-slate-50 rounded-lg p-3 text-xs font-mono mb-4 border border-slate-200" id="math-A"></div>
+
+                            <!-- Sliders -->
+                            <div class="slider-container" data-id="A"></div>
+                        </div>
+                    </div>
+
+                    <!-- Neuron B -->
+                    <div class="relative group mt-16">
+                        <button onclick="openConfig('B')" id="node-b" class="w-24 h-24 bg-white border-4 border-slate-300 rounded-full flex flex-col items-center justify-center shadow-lg transition-all hover:scale-105 active:scale-95 z-20 relative">
+                             <!-- Bulb Icon -->
+                             <svg class="w-10 h-10 text-slate-300 transition-colors duration-300" id="icon-b" fill="currentColor" viewBox="0 0 20 20"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"/></svg>
+                             <div class="absolute -bottom-8 bg-slate-800 text-white text-xs px-2 py-1 rounded w-max" data-i18n="neuronB">Neuron B</div>
+                        </button>
+                        
+                        <div id="badge-b" class="absolute -top-3 -right-3 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full border-2 border-slate-900 z-30">OFF</div>
+
+                        <!-- POPOVER B -->
+                         <div id="popover-B" class="popover absolute bottom-0 left-[110%] w-72 bg-white rounded-xl shadow-2xl p-5 z-50">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 class="font-bold text-lg text-slate-800" data-i18n="neuronB">Neuron B</h3>
+                                    <p class="text-xs text-slate-500"><span data-i18n="actingAs">Currently acting as:</span> <span id="gate-b" class="font-mono bg-yellow-100 text-yellow-800 px-1 rounded">UNKNOWN</span></p>
+                                </div>
+                                <button onclick="openConfig(null)" class="text-slate-400 hover:text-slate-600">✕</button>
+                            </div>
+                            <div class="bg-slate-50 rounded-lg p-3 text-xs font-mono mb-4 border border-slate-200" id="math-B"></div>
+                            <div class="slider-container" data-id="B"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- COLUMN 3: OUTPUT -->
+                <div class="flex flex-col justify-center">
+                    <div class="relative group">
+                        <button onclick="openConfig('C')" id="node-c" class="w-32 h-32 bg-white border-8 border-slate-300 rounded-full flex flex-col items-center justify-center shadow-xl transition-all hover:scale-105 active:scale-95 z-20 relative">
+                             <!-- Bulb Icon -->
+                             <svg class="w-16 h-16 text-slate-300 transition-colors duration-300" id="icon-c" fill="currentColor" viewBox="0 0 20 20"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"/></svg>
+                             <div class="absolute -bottom-8 bg-slate-800 text-white text-xs px-2 py-1 rounded w-max" data-i18n="nodeFinal">FINAL</div>
+                        </button>
+                        
+                        <div id="badge-c" class="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full border-2 border-slate-900 z-30">OFF</div>
+
+                        <!-- POPOVER C -->
+                        <div id="popover-C" class="popover absolute top-1/2 -translate-y-1/2 right-[110%] w-72 bg-white rounded-xl shadow-2xl p-5 z-50">
+                            <div class="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 class="font-bold text-lg text-slate-800" data-i18n="finalDecision">Final Decision</h3>
+                                    <p class="text-xs text-slate-500"><span data-i18n="actingAs">Currently acting as:</span> <span id="gate-c" class="font-mono bg-yellow-100 text-yellow-800 px-1 rounded">UNKNOWN</span></p>
+                                </div>
+                                <button onclick="openConfig(null)" class="text-slate-400 hover:text-slate-600">✕</button>
+                            </div>
+                            <div class="bg-slate-50 rounded-lg p-3 text-xs font-mono mb-4 border border-slate-200" id="math-C"></div>
+                            <div class="slider-container" data-id="C"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Translations ---
+        const TRANSLATIONS = {
+            en: {
+                title: "Santa's Logic Circuit",
+                subtitle: "Build a brain that fires <strong>ONLY</strong> when a child does <strong>Exactly One</strong> chore.",
+                step1: "Step 1: Test Scenarios",
+                input1: "Input 1",
+                input2: "Input 2",
+                trash: "Trash",
+                dishes: "Dishes",
+                clickHint: "Click buttons to change what the child did.",
+                step2: "Step 2: Logic Check",
+                correct: "Correct",
+                successTitle: "🎉 Challenge Complete!",
+                successMsg: "The network is now a perfect XOR Gate.",
+                hintTitle: "💡 How to play:",
+                hintText: "Click on the <strong>Lightbulbs</strong> (Neurons) to change their wiring. Make the final bulb light up ONLY for 'One Chore'.",
+                nodeInput: "INPUT",
+                neuronA: "Neuron A",
+                neuronB: "Neuron B",
+                nodeFinal: "FINAL",
+                finalDecision: "Final Decision",
+                actingAs: "Currently acting as:",
+                weight: "Weight",
+                bias: "Bias Threshold",
+                total: "TOTAL",
+                fires: "🔥 FIRES (Total ≥ 0)",
+                off: "💤 OFF (Total < 0)",
+                fromA: "From Neuron A",
+                fromB: "From Neuron B",
+                input: "Input",
+                goal: "GOAL",
+                result: "RESULT",
+                // Table Rows
+                rowNone: "None",
+                rowTrash: "Trash Only",
+                rowDishes: "Dishes Only",
+                rowBoth: "Both",
+                // Gates
+                alwaysOn: "ALWAYS ON",
+                alwaysOff: "ALWAYS OFF"
+            },
+            de: {
+                title: "Santas Logik-Schaltkreis",
+                subtitle: "Baue ein Gehirn, das <strong>NUR</strong> feuert, wenn ein Kind <strong>genau eine</strong> Aufgabe erledigt.",
+                step1: "Schritt 1: Testszenarien",
+                input1: "Eingabe 1",
+                input2: "Eingabe 2",
+                trash: "Müll",
+                dishes: "Geschirr",
+                clickHint: "Klicke Buttons um die Situation zu ändern.",
+                step2: "Schritt 2: Logik-Prüfung",
+                correct: "Korrekt",
+                successTitle: "🎉 Herausforderung gemeistert!",
+                successMsg: "Das Netzwerk ist jetzt ein perfektes XOR-Gatter.",
+                hintTitle: "💡 Spielanleitung:",
+                hintText: "Klicke auf die <strong>Glühbirnen</strong> (Neuronen), um ihre Verkabelung zu ändern. Bringe die letzte Birne NUR bei 'Einer Aufgabe' zum Leuchten.",
+                nodeInput: "INPUT",
+                neuronA: "Neuron A",
+                neuronB: "Neuron B",
+                nodeFinal: "ENDE",
+                finalDecision: "Endentscheidung",
+                actingAs: "Verhält sich wie:",
+                weight: "Gewichtung",
+                bias: "Schwellenwert",
+                total: "GESAMT",
+                fires: "🔥 FEUERT (Gesamt ≥ 0)",
+                off: "💤 AUS (Gesamt < 0)",
+                fromA: "Von Neuron A",
+                fromB: "Von Neuron B",
+                input: "Eingabe",
+                goal: "ZIEL",
+                result: "ERGEBNIS",
+                rowNone: "Nichts",
+                rowTrash: "Nur Müll",
+                rowDishes: "Nur Geschirr",
+                rowBoth: "Beides",
+                alwaysOn: "IMMER AN",
+                alwaysOff: "IMMER AUS"
+            },
+            es: {
+                title: "Circuito Lógico de Santa",
+                subtitle: "Construye un cerebro que se active <strong>SOLO</strong> cuando un niño haga <strong>Exactamente una</strong> tarea.",
+                step1: "Paso 1: Escenarios de Prueba",
+                input1: "Entrada 1",
+                input2: "Entrada 2",
+                trash: "Basura",
+                dishes: "Platos",
+                clickHint: "Haz clic en los botones para cambiar la acción del niño.",
+                step2: "Paso 2: Comprobación Lógica",
+                correct: "Correcto",
+                successTitle: "🎉 ¡Desafío Completado!",
+                successMsg: "La red es ahora una puerta XOR perfecta.",
+                hintTitle: "💡 Cómo jugar:",
+                hintText: "Haz clic en las <strong>Bombillas</strong> (Neuronas) para cambiar su cableado. Haz que la bombilla final se encienda SOLO para 'Una Tarea'.",
+                nodeInput: "ENTRADA",
+                neuronA: "Neurona A",
+                neuronB: "Neurona B",
+                nodeFinal: "FINAL",
+                finalDecision: "Decisión Final",
+                actingAs: "Actuando como:",
+                weight: "Peso",
+                bias: "Umbral (Bias)",
+                total: "TOTAL",
+                fires: "🔥 ACTIVO (Total ≥ 0)",
+                off: "💤 APAGADO (Total < 0)",
+                fromA: "De Neurona A",
+                fromB: "De Neurona B",
+                input: "Entrada",
+                goal: "META",
+                result: "RESULTADO",
+                rowNone: "Ninguna",
+                rowTrash: "Solo Basura",
+                rowDishes: "Solo Platos",
+                rowBoth: "Ambas",
+                alwaysOn: "SIEMPRE ON",
+                alwaysOff: "SIEMPRE OFF"
+            },
+            pt: {
+                title: "Circuito Lógico do Papai Noel",
+                subtitle: "Construa um cérebro que dispare <strong>APENAS</strong> quando uma criança fizer <strong>Exatamente uma</strong> tarefa.",
+                step1: "Passo 1: Cenários de Teste",
+                input1: "Entrada 1",
+                input2: "Entrada 2",
+                trash: "Lixo",
+                dishes: "Louça",
+                clickHint: "Clique nos botões para mudar o que a criança fez.",
+                step2: "Passo 2: Verificação Lógica",
+                correct: "Correto",
+                successTitle: "🎉 Desafio Concluído!",
+                successMsg: "A rede agora é uma porta XOR perfeita.",
+                hintTitle: "💡 Como jogar:",
+                hintText: "Clique nas <strong>Lâmpadas</strong> (Neurônios) para mudar sua fiação. Faça a lâmpada final acender APENAS para 'Uma Tarefa'.",
+                nodeInput: "ENTRADA",
+                neuronA: "Neurônio A",
+                neuronB: "Neurônio B",
+                nodeFinal: "FINAL",
+                finalDecision: "Decisão Final",
+                actingAs: "Atuando como:",
+                weight: "Peso",
+                bias: "Limiar (Bias)",
+                total: "TOTAL",
+                fires: "🔥 DISPARA (Total ≥ 0)",
+                off: "💤 DESLIGADO (Total < 0)",
+                fromA: "Do Neurônio A",
+                fromB: "Do Neurônio B",
+                input: "Entrada",
+                goal: "META",
+                result: "RESULTADO",
+                rowNone: "Nenhuma",
+                rowTrash: "Só Lixo",
+                rowDishes: "Só Louça",
+                rowBoth: "Ambas",
+                alwaysOn: "SEMPRE ON",
+                alwaysOff: "SEMPRE OFF"
+            }
+        };
+
+        // --- Game State ---
+        const state = {
+            lang: 'en',
+            inputs: { x1: 0, x2: 0 },
+            neurons: {
+                // Initial "broken" state
+                A: { w1: 1, w2: 1, b: -0.5 }, // Starts as OR (Correct)
+                B: { w1: 0, w2: 0, b: 0 },    // Starts OFF (Needs to be NAND)
+                C: { w1: 1, w2: 1, b: -2 }    // Starts Hard AND (Correct-ish)
+            },
+            openPopover: null
+        };
+
+        // Helper to get translation
+        // Renamed from 't' to 'translateText' to avoid global naming conflicts
+        const translateText = (key) => TRANSLATIONS[state.lang][key] || key;
+
+        function changeLanguage(lang) {
+            state.lang = lang;
+            updateText();
+            createSliders(); // Re-render sliders to update labels
+            updateUI();      // Trigger update to refresh table/math
+        }
+
+        function updateText() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if(TRANSLATIONS[state.lang][key]) {
+                    el.innerHTML = TRANSLATIONS[state.lang][key];
+                }
+            });
+        }
+
+        const TRUTH_TABLE_TEMPLATE = [
+            { x1: 0, x2: 0, goal: 0, labelKey: "rowNone" },
+            { x1: 1, x2: 0, goal: 1, labelKey: "rowTrash" },
+            { x1: 0, x2: 1, goal: 1, labelKey: "rowDishes" },
+            { x1: 1, x2: 1, goal: 0, labelKey: "rowBoth" },
+        ];
+
+        // --- Core Logic ---
+        const activate = (sum) => sum >= 0 ? 1 : 0;
+
+        const calculateNeuron = (i1, i2, weights) => {
+            const sum = (i1 * weights.w1) + (i2 * weights.w2) + weights.b;
+            return { sum, result: activate(sum) };
+        };
+
+        const detectGate = (w) => {
+            const r00 = activate((0*w.w1) + (0*w.w2) + w.b);
+            const r01 = activate((0*w.w1) + (1*w.w2) + w.b);
+            const r10 = activate((1*w.w1) + (0*w.w2) + w.b);
+            const r11 = activate((1*w.w1) + (1*w.w2) + w.b);
+            const code = `${r00}${r01}${r10}${r11}`;
+            
+            const gates = {
+                '0001': 'AND', '0111': 'OR', '1110': 'NAND',
+                '1000': 'NOR', '0110': 'XOR', '0000': translateText('alwaysOff'), '1111': translateText('alwaysOn')
+            };
+            return gates[code] || 'CUSTOM';
+        };
+
+        // --- Drawing & UI Updates ---
+
+        function drawLines(res) {
+            const svg = document.querySelector('svg');
+            // Helper to get center coordinates of elements relative to SVG
+            const getPos = (id) => {
+                const el = document.getElementById(id);
+                const rect = el.getBoundingClientRect();
+                const parent = svg.getBoundingClientRect();
+                return {
+                    x: rect.left + rect.width/2 - parent.left,
+                    y: rect.top + rect.height/2 - parent.top
+                };
+            };
+
+            const pX1 = getPos('node-x1');
+            const pX2 = getPos('node-x2');
+            const pA = getPos('node-a');
+            const pB = getPos('node-b');
+            const pC = getPos('node-c');
+
+            // Define connections
+            const connections = [
+                { start: pX1, end: pA, val: state.inputs.x1, w: state.neurons.A.w1 },
+                { start: pX2, end: pA, val: state.inputs.x2, w: state.neurons.A.w2 },
+                { start: pX1, end: pB, val: state.inputs.x1, w: state.neurons.B.w1 },
+                { start: pX2, end: pB, val: state.inputs.x2, w: state.neurons.B.w2 },
+                { start: pA, end: pC, val: res.a.result, w: state.neurons.C.w1 },
+                { start: pB, end: pC, val: res.b.result, w: state.neurons.C.w2 },
+            ];
+
+            // Render lines
+            svg.innerHTML = connections.map(conn => {
+                const color = conn.val === 1 ? '#4ade80' : '#ef4444'; // Green or Red
+                const opacity = conn.val === 1 ? '1' : '0.3';
+                const thickness = Math.max(2, Math.abs(conn.w) * 2); // Thickness based on weight magnitude
+                const dash = conn.val === 1 ? 'class="wire-active"' : '';
+                
+                return `<line x1="${conn.start.x}" y1="${conn.start.y}" x2="${conn.end.x}" y2="${conn.end.y}" 
+                        stroke="${color}" stroke-width="${thickness}" stroke-opacity="${opacity}" stroke-linecap="round" ${dash} />
+                        <!-- Value Label on wire -->
+                        <rect x="${(conn.start.x + conn.end.x)/2 - 10}" y="${(conn.start.y + conn.end.y)/2 - 10}" width="20" height="20" rx="4" fill="#0f172a" />
+                        <text x="${(conn.start.x + conn.end.x)/2}" y="${(conn.start.y + conn.end.y)/2}" dy="5" text-anchor="middle" fill="${color}" font-weight="bold" font-size="12" font-family="monospace">${conn.val}</text>
+                        `;
+            }).join('');
+        }
+
+        function updateUI() {
+            // 1. Calculate Network State
+            const resA = calculateNeuron(state.inputs.x1, state.inputs.x2, state.neurons.A);
+            const resB = calculateNeuron(state.inputs.x1, state.inputs.x2, state.neurons.B);
+            const resC = calculateNeuron(resA.result, resB.result, state.neurons.C);
+            const res = { a: resA, b: resB, c: resC };
+
+            // 2. Update Inputs Visuals
+            const btnX1 = document.getElementById('btn-x1');
+            const btnX2 = document.getElementById('btn-x2');
+            
+            // X1 Style
+            if(state.inputs.x1) {
+                btnX1.className = "py-4 rounded-xl border-2 border-green-500 bg-green-50 text-green-700 font-bold text-lg transition-all flex flex-col items-center gap-1 shadow-md";
+                document.getElementById('status-x1').className = "absolute inset-x-0 bottom-0 h-1.5 bg-green-500";
+            } else {
+                btnX1.className = "py-4 rounded-xl border-2 border-slate-200 bg-white text-slate-400 font-bold text-lg transition-all flex flex-col items-center gap-1 hover:border-slate-300";
+                document.getElementById('status-x1').className = "absolute inset-x-0 bottom-0 h-1.5 bg-slate-200";
+            }
+            
+            // X2 Style
+            if(state.inputs.x2) {
+                btnX2.className = "py-4 rounded-xl border-2 border-green-500 bg-green-50 text-green-700 font-bold text-lg transition-all flex flex-col items-center gap-1 shadow-md";
+                document.getElementById('status-x2').className = "absolute inset-x-0 bottom-0 h-1.5 bg-green-500";
+            } else {
+                btnX2.className = "py-4 rounded-xl border-2 border-slate-200 bg-white text-slate-400 font-bold text-lg transition-all flex flex-col items-center gap-1 hover:border-slate-300";
+                document.getElementById('status-x2').className = "absolute inset-x-0 bottom-0 h-1.5 bg-slate-200";
+            }
+
+            // 3. Update Input Nodes
+            document.getElementById('node-x1').style.borderColor = state.inputs.x1 ? '#4ade80' : '#475569';
+            document.getElementById('node-x1').style.color = state.inputs.x1 ? '#4ade80' : '#94a3b8';
+            document.getElementById('node-x2').style.borderColor = state.inputs.x2 ? '#4ade80' : '#475569';
+            document.getElementById('node-x2').style.color = state.inputs.x2 ? '#4ade80' : '#94a3b8';
+
+
+            // 4. Update Neurons (Bulbs)
+            const updateBulb = (id, result, sum, badgeId) => {
+                const node = document.getElementById(id);
+                const icon = document.getElementById(id.replace('node','icon'));
+                const badge = document.getElementById(badgeId);
+                
+                if (result === 1) {
+                    node.classList.add('border-yellow-400', 'glow-on');
+                    node.classList.remove('border-slate-300');
+                    icon.classList.add('text-yellow-400');
+                    icon.classList.remove('text-slate-300');
+                    badge.innerText = "ON";
+                    badge.className = "absolute -top-3 -right-3 bg-green-500 text-white text-xs font-bold px-2 py-0.5 rounded-full border-2 border-slate-900 z-30 shadow-lg";
+                } else {
+                    node.classList.remove('border-yellow-400', 'glow-on');
+                    node.classList.add('border-slate-300');
+                    icon.classList.remove('text-yellow-400');
+                    icon.classList.add('text-slate-300');
+                    badge.innerText = "OFF";
+                    badge.className = "absolute -top-3 -right-3 bg-slate-500 text-slate-200 text-xs font-bold px-2 py-0.5 rounded-full border-2 border-slate-900 z-30";
+                }
+            };
+
+            updateBulb('node-a', res.a.result, res.a.sum, 'badge-a');
+            updateBulb('node-b', res.b.result, res.b.sum, 'badge-b');
+            updateBulb('node-c', res.c.result, res.c.sum, 'badge-c');
+
+            // 5. Update Gate Labels in Popovers
+            document.getElementById('gate-a').innerText = detectGate(state.neurons.A);
+            document.getElementById('gate-b').innerText = detectGate(state.neurons.B);
+            document.getElementById('gate-c').innerText = detectGate(state.neurons.C);
+
+            // 6. Update Popover Math
+            const renderMath = (inputs, weights, sum, result) => {
+                return `
+                    <div class="flex justify-between"><span>${translateText('input')} 1 (${inputs[0]}) × ${weights.w1}</span> <span>= ${(inputs[0]*weights.w1).toFixed(1)}</span></div>
+                    <div class="flex justify-between"><span>${translateText('input')} 2 (${inputs[1]}) × ${weights.w2}</span> <span>= ${(inputs[1]*weights.w2).toFixed(1)}</span></div>
+                    <div class="flex justify-between border-b border-slate-300 pb-1 mb-1"><span>${translateText('bias')}</span> <span>+ ${weights.b}</span></div>
+                    <div class="flex justify-between font-bold text-slate-700"><span>${translateText('total')}</span> <span>${sum.toFixed(1)}</span></div>
+                    <div class="mt-2 text-center font-bold ${result===1 ? 'text-green-600' : 'text-slate-400'}">
+                        ${result===1 ? translateText('fires') : translateText('off')}
+                    </div>
+                `;
+            }
+            document.getElementById('math-A').innerHTML = renderMath([state.inputs.x1, state.inputs.x2], state.neurons.A, res.a.sum, res.a.result);
+            document.getElementById('math-B').innerHTML = renderMath([state.inputs.x1, state.inputs.x2], state.neurons.B, res.b.sum, res.b.result);
+            document.getElementById('math-C').innerHTML = renderMath([res.a.result, res.b.result], state.neurons.C, res.c.sum, res.c.result);
+
+
+            // 7. Update Truth Table & Draw Lines
+            drawLines(res);
+            updateTruthTable();
+        }
+
+        function updateTruthTable() {
+            const container = document.getElementById('truth-table');
+            container.innerHTML = '';
+            let correctCount = 0;
+
+            TRUTH_TABLE_TEMPLATE.forEach((row, i) => {
+                // Dry run network for this row
+                const rA = calculateNeuron(row.x1, row.x2, state.neurons.A).result;
+                const rB = calculateNeuron(row.x1, row.x2, state.neurons.B).result;
+                const rC = calculateNeuron(rA, rB, state.neurons.C).result;
+                
+                const isMatch = rC === row.goal;
+                if(isMatch) correctCount++;
+
+                const isActiveRow = (state.inputs.x1 === row.x1 && state.inputs.x2 === row.x2);
+
+                const div = document.createElement('div');
+                div.className = `flex items-center justify-between p-3 rounded-lg border-l-4 transition-colors ${
+                    isActiveRow ? 'bg-blue-50 border-blue-500 shadow-md ring-1 ring-blue-200' : 'bg-white border-transparent hover:bg-slate-50'
+                }`;
+                
+                div.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="flex flex-col text-xs font-mono text-slate-400">
+                            <span>IN: ${row.x1},${row.x2}</span>
+                        </div>
+                        <span class="font-bold text-slate-700 ${isActiveRow ? 'text-blue-700' : ''}">${translateText(row.labelKey)}</span>
+                    </div>
+                    <div class="flex items-center gap-4 text-sm">
+                        <div class="flex flex-col items-end">
+                            <span class="text-[10px] uppercase text-slate-400">${translateText('goal')}</span>
+                            <span class="font-bold">${row.goal === 1 ? 'ON' : 'OFF'}</span>
+                        </div>
+                        <div class="flex flex-col items-end">
+                            <span class="text-[10px] uppercase text-slate-400">${translateText('result')}</span>
+                            <span class="font-bold ${isMatch ? 'text-green-600' : 'text-red-600'}">
+                                ${rC === 1 ? 'ON' : 'OFF'}
+                            </span>
+                        </div>
+                        <div class="w-6 flex justify-center">
+                            ${isMatch ? '✅' : '❌'}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+
+            document.getElementById('score-badge').innerText = `${correctCount}/4 ${translateText('correct')}`;
+            if(correctCount === 4) {
+                document.getElementById('score-badge').className = "bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold";
+                document.getElementById('success-banner').classList.remove('hidden');
+            } else {
+                document.getElementById('score-badge').className = "bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold";
+                document.getElementById('success-banner').classList.add('hidden');
+            }
+        }
+
+        function toggleInput(key) {
+            state.inputs[key] = state.inputs[key] ? 0 : 1;
+            updateUI();
+        }
+
+        // --- Popover / Slider Logic ---
+
+        window.openConfig = (id) => {
+            // Hide all first
+            ['A', 'B', 'C'].forEach(pid => {
+                document.getElementById(`popover-${pid}`).classList.remove('active');
+            });
+
+            // Toggle logic
+            if(id && state.openPopover !== id) {
+                document.getElementById(`popover-${id}`).classList.add('active');
+                state.openPopover = id;
+            } else {
+                state.openPopover = null;
+            }
+        };
+
+        function createSliders() {
+            const containers = document.querySelectorAll('.slider-container');
+            containers.forEach(c => {
+                const id = c.getAttribute('data-id');
+                const neuron = state.neurons[id];
+                
+                const labels = id === 'C' 
+                    ? { w1: translateText('fromA'), w2: translateText('fromB') } 
+                    : { w1: `${translateText('weight')} (Input 1)`, w2: `${translateText('weight')} (Input 2)` };
+
+                c.innerHTML = `
+                    <div class="space-y-4">
+                        <div>
+                            <div class="flex justify-between text-xs font-bold text-slate-500 mb-1">
+                                <span>${labels.w1}</span>
+                                <span id="val-${id}-w1">${neuron.w1}</span>
+                            </div>
+                            <input type="range" min="-3" max="3" step="0.5" value="${neuron.w1}" 
+                                oninput="updateParam('${id}', 'w1', this.value)">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs font-bold text-slate-500 mb-1">
+                                <span>${labels.w2}</span>
+                                <span id="val-${id}-w2">${neuron.w2}</span>
+                            </div>
+                            <input type="range" min="-3" max="3" step="0.5" value="${neuron.w2}" 
+                                oninput="updateParam('${id}', 'w2', this.value)">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs font-bold text-slate-500 mb-1">
+                                <span>${translateText('bias')}</span>
+                                <span id="val-${id}-b">${neuron.b}</span>
+                            </div>
+                            <input type="range" min="-3" max="3" step="0.5" value="${neuron.b}" 
+                                oninput="updateParam('${id}', 'b', this.value)">
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        window.updateParam = (id, param, val) => {
+            state.neurons[id][param] = parseFloat(val);
+            document.getElementById(`val-${id}-${param}`).innerText = val;
+            updateUI();
+        };
+
+        // --- Init ---
+        updateText();
+        createSliders();
+        updateUI();
+
+        // Close popovers on Esc
+        document.addEventListener('keydown', (e) => {
+            if(e.key === 'Escape') openConfig(null);
+        });
+
+    </script>
+</body>
+</html>
+
